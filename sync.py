@@ -14,8 +14,8 @@ TENANT_ID = os.environ["TENANT_ID"]
 CLIENT_ID = os.environ["CLIENT_ID"]
 CLIENT_SECRET = os.environ["CLIENT_SECRET"]
 USER_EMAIL = os.environ["USER_EMAIL"]
-ESBFILE_ID = os.environ["ESBFILE_ID"]
-ESBGOOGLE_SHEET_ID = os.environ["ESBGOOGLE_SHEET_ID"]
+ESBESBFILE_ID = os.environ["ESBESBFILE_ID"]
+ESBESBGOOGLE_SHEET_ID = os.environ["ESBESBGOOGLE_SHEET_ID"]
 
 # state file
 LAST_SYNC_FILE = "last_sync.txt"
@@ -45,7 +45,7 @@ creds = Credentials.from_service_account_info(
 )
 
 client = gspread.authorize(creds)
-spreadsheet = client.open_by_key(GOOGLE_SHEET_ID)
+spreadsheet = client.open_by_key(ESBGOOGLE_SHEET_ID)
 
 # ================================
 # 🔐 MICROSOFT GRAPH TOKEN
@@ -115,7 +115,7 @@ def get_excel_last_modified() -> str:
     Get Excel file last modified time from Microsoft Graph
     """
     file_meta_url = (
-        f"https://graph.microsoft.com/v1.0/users/{USER_EMAIL}/drive/items/{FILE_ID}"
+        f"https://graph.microsoft.com/v1.0/users/{USER_EMAIL}/drive/items/{ESBFILE_ID}"
         f"?$select=id,name,lastModifiedDateTime"
     )
 
@@ -138,7 +138,7 @@ def sync_table(table_name: str, sheet_name: str) -> None:
 
     rows_url = (
         f"https://graph.microsoft.com/v1.0/users/{USER_EMAIL}/drive/items/"
-        f"{FILE_ID}/workbook/tables/{table_name}/rows"
+        f"{ESBFILE_ID}/workbook/tables/{table_name}/rows"
     )
     rows_res = requests.get(rows_url, headers=headers, timeout=60)
     rows_res.raise_for_status()
@@ -149,7 +149,7 @@ def sync_table(table_name: str, sheet_name: str) -> None:
 
     cols_url = (
         f"https://graph.microsoft.com/v1.0/users/{USER_EMAIL}/drive/items/"
-        f"{FILE_ID}/workbook/tables/{table_name}/columns"
+        f"{ESBFILE_ID}/workbook/tables/{table_name}/columns"
     )
     cols_res = requests.get(cols_url, headers=headers, timeout=60)
     cols_res.raise_for_status()
