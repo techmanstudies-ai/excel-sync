@@ -8,7 +8,7 @@ from google.oauth2.service_account import Credentials
 
 # ================================
 # 🔐 CONFIG (FROM GITHUB SECRETS)
-# ================================
+# ================================ 
 
 TENANT_ID = os.environ["TENANT_ID"]
 CLIENT_ID = os.environ["CLIENT_ID"]
