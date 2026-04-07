@@ -14,7 +14,7 @@ TENANT_ID = os.environ["TENANT_ID"]
 CLIENT_ID = os.environ["CLIENT_ID"]
 CLIENT_SECRET = os.environ["CLIENT_SECRET"]
 USER_EMAIL = os.environ["USER_EMAIL"]
-FILE_ID = os.environ["FILE_ID"]
+ESBFILE_ID = os.environ["ESBFILE_ID"]
 GOOGLE_SHEET_ID = os.environ["GOOGLE_SHEET_ID"]
 
 # state file
