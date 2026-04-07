@@ -28,7 +28,7 @@ jobs:
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
           USER_EMAIL: ${{ secrets.USER_EMAIL }}
-          FILE_ID: ${{ secrets.FILE_ID }}
+          ESBFILE_ID: ${{ secrets.ESBFILE_ID }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
 
