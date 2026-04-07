@@ -15,7 +15,7 @@ CLIENT_ID = os.environ["CLIENT_ID"]
 CLIENT_SECRET = os.environ["CLIENT_SECRET"]
 USER_EMAIL = os.environ["USER_EMAIL"]
 ESBFILE_ID = os.environ["ESBFILE_ID"]
-GOOGLE_SHEET_ID = os.environ["GOOGLE_SHEET_ID"]
+ESBGOOGLE_SHEET_ID = os.environ["ESBGOOGLE_SHEET_ID"]
 
 # state file
 LAST_SYNC_FILE = "last_sync.txt"
