@@ -22,8 +22,10 @@ LAST_SYNC_FILE = "last_sync.txt"
 
 # table mapping
 TABLE_MAPPING = {
-    "InvoiceTable": "Invoice_Header",
-    "InvoiceDetailTable": "Invoice_Detail"
+    "IVDTL_Table": "IVDTL",
+    "CN_Table": "CN",
+    "IV_Table": "IV",
+    "Client_Table": "Client"
 }
 
 # ================================
