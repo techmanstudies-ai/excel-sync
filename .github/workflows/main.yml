@@ -23,6 +23,14 @@ jobs:
 
       - name: Run Sync
         run: python sync.py
+        
+      - name: Save last sync state
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add last_sync.txt
+          git commit -m "Update last sync time" || echo "No changes to commit"
+          git push
         env:
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           TENANT_ID: ${{ secrets.TENANT_ID }}
