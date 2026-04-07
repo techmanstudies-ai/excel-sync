@@ -33,7 +33,7 @@ jobs:
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
 
       - name: Save last sync state
-        run: |
+        run: | 
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add last_sync.txt
