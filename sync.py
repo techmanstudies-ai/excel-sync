@@ -6,30 +6,52 @@ import json
 from datetime import datetime, timezone
 from google.oauth2.service_account import Credentials
 
-# ==============================
-#  CONFIG (FROM GITHUB SECRETS)
-# ==============================
+# ================================
+# CONFIG (FROM GITHUB SECRETS)
+# ================================
 
 TENANT_ID = os.environ["TENANT_ID"]
 CLIENT_ID = os.environ["CLIENT_ID"]
 CLIENT_SECRET = os.environ["CLIENT_SECRET"]
 USER_EMAIL = os.environ["USER_EMAIL"]
+
 ESBFILE_ID = os.environ["ESBFILE_ID"]
 ESBGOOGLE_SHEET_ID = os.environ["ESBGOOGLE_SHEET_ID"]
 
-# state file
-LAST_SYNC_FILE = "last_sync.txt"
-
-# table mapping
-TABLE_MAPPING = {
-    "IVDTL_Table": "IVDTL",
-    "CN_Table": "CN",
-    "IV_Table": "IV",
-    "Client_Table": "Client"
-}
+TESTFILE_ID = os.environ["FILE_ID"]
+TEST_GOOGLE_SHEET_ID = os.environ["GOOGLE_SHEET_ID"]
 
 # ================================
-# 🔐 GOOGLE AUTH
+# MULTI CONFIG
+# ================================
+
+SYNC_CONFIGS = [
+    {
+        "name": "ESB",
+        "file_id": ESBFILE_ID,
+        "google_sheet_id": ESBGOOGLE_SHEET_ID,
+        "last_sync_file": "last_sync_esb.txt",
+        "table_mapping": {
+            "IVDTL_Table": "IVDTL",
+            "CN_Table": "CN",
+            "IV_Table": "IV",
+            "Client_Table": "Client"
+        }
+    },
+    {
+        "name": "TEST",
+        "file_id": TESTFILE_ID,
+        "google_sheet_id": TEST_GOOGLE_SHEET_ID,
+        "last_sync_file": "last_sync_test.txt",
+        "table_mapping": {
+            "InvoiceTable": "Invoice_Header",
+            "InvoiceDetailTable": "Invoice_Detail"
+        }
+    }
+]
+
+# ================================
+# GOOGLE AUTH
 # ================================
 
 scope = [
@@ -44,11 +66,10 @@ creds = Credentials.from_service_account_info(
     scopes=scope
 )
 
-client = gspread.authorize(creds)
-spreadsheet = client.open_by_key(ESBGOOGLE_SHEET_ID)
+gspread_client = gspread.authorize(creds)
 
 # ================================
-# 🔐 MICROSOFT GRAPH TOKEN
+# MICROSOFT GRAPH TOKEN
 # ================================
 
 token_url = f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/token"
@@ -74,24 +95,17 @@ headers = {
 }
 
 # ================================
-# 🕒 HELPER: TIME
+# TIME HELPERS
 # ================================
 
 def parse_graph_datetime(dt_str: str) -> datetime:
-    """
-    Convert Graph datetime like 2026-04-07T01:23:45Z into timezone-aware datetime.
-    """
     return datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
 
-def read_last_sync_time() -> datetime:
-    """
-    Read last sync time from last_sync.txt.
-    If file not found, use very old datetime.
-    """
-    if not os.path.exists(LAST_SYNC_FILE):
+def read_last_sync_time(last_sync_file: str) -> datetime:
+    if not os.path.exists(last_sync_file):
         return datetime(2000, 1, 1, tzinfo=timezone.utc)
 
-    with open(LAST_SYNC_FILE, "r", encoding="utf-8") as f:
+    with open(last_sync_file, "r", encoding="utf-8") as f:
         content = f.read().strip()
 
     if not content:
@@ -99,23 +113,17 @@ def read_last_sync_time() -> datetime:
 
     return parse_graph_datetime(content)
 
-def save_last_sync_time(dt_str: str) -> None:
-    """
-    Save last sync time into last_sync.txt
-    """
-    with open(LAST_SYNC_FILE, "w", encoding="utf-8") as f:
+def save_last_sync_time(last_sync_file: str, dt_str: str) -> None:
+    with open(last_sync_file, "w", encoding="utf-8") as f:
         f.write(dt_str)
 
 # ================================
-# 📄 HELPER: EXCEL LAST MODIFIED
+# EXCEL LAST MODIFIED
 # ================================
 
-def get_excel_last_modified() -> str:
-    """
-    Get Excel file last modified time from Microsoft Graph
-    """
+def get_excel_last_modified(file_id: str) -> str:
     file_meta_url = (
-        f"https://graph.microsoft.com/v1.0/users/{USER_EMAIL}/drive/items/{ESBFILE_ID}"
+        f"https://graph.microsoft.com/v1.0/users/{USER_EMAIL}/drive/items/{file_id}"
         f"?$select=id,name,lastModifiedDateTime"
     )
 
@@ -130,15 +138,15 @@ def get_excel_last_modified() -> str:
     return data["lastModifiedDateTime"]
 
 # ================================
-# 🔄 SYNC FUNCTION
+# SYNC ONE TABLE
 # ================================
 
-def sync_table(table_name: str, sheet_name: str) -> None:
+def sync_table(file_id: str, spreadsheet, table_name: str, sheet_name: str) -> None:
     print(f"🔄 Syncing {table_name}...")
 
     rows_url = (
         f"https://graph.microsoft.com/v1.0/users/{USER_EMAIL}/drive/items/"
-        f"{ESBFILE_ID}/workbook/tables/{table_name}/rows"
+        f"{file_id}/workbook/tables/{table_name}/rows"
     )
     rows_res = requests.get(rows_url, headers=headers, timeout=60)
     rows_res.raise_for_status()
@@ -149,7 +157,7 @@ def sync_table(table_name: str, sheet_name: str) -> None:
 
     cols_url = (
         f"https://graph.microsoft.com/v1.0/users/{USER_EMAIL}/drive/items/"
-        f"{ESBFILE_ID}/workbook/tables/{table_name}/columns"
+        f"{file_id}/workbook/tables/{table_name}/columns"
     )
     cols_res = requests.get(cols_url, headers=headers, timeout=60)
     cols_res.raise_for_status()
@@ -176,18 +184,26 @@ def sync_table(table_name: str, sheet_name: str) -> None:
     print(f"   ✅ Synced to {sheet_name}")
 
 # ================================
-# 🚀 MAIN
+# PROCESS ONE EXCEL
 # ================================
 
-def main():
+def process_one_config(config: dict) -> None:
+    name = config["name"]
+    file_id = config["file_id"]
+    google_sheet_id = config["google_sheet_id"]
+    last_sync_file = config["last_sync_file"]
+    table_mapping = config["table_mapping"]
+
     print("====================================")
-    print("🚀 START EXCEL TO GOOGLE SYNC")
+    print(f"📦 START CONFIG: {name}")
     print("====================================")
 
-    excel_last_modified_str = get_excel_last_modified()
+    spreadsheet = gspread_client.open_by_key(google_sheet_id)
+
+    excel_last_modified_str = get_excel_last_modified(file_id)
     excel_last_modified = parse_graph_datetime(excel_last_modified_str)
 
-    last_sync_time = read_last_sync_time()
+    last_sync_time = read_last_sync_time(last_sync_file)
 
     print(f"📄 Excel last modified : {excel_last_modified_str}")
     print(f"🕒 Last sync time      : {last_sync_time.isoformat()}")
@@ -199,14 +215,26 @@ def main():
 
     print("🟢 Changes detected. Start syncing...")
 
-    for table, sheet in TABLE_MAPPING.items():
-        sync_table(table, sheet)
+    for table, sheet in table_mapping.items():
+        sync_table(file_id, spreadsheet, table, sheet)
 
-    save_last_sync_time(excel_last_modified_str)
+    save_last_sync_time(last_sync_file, excel_last_modified_str)
 
-    print(f"📝 Updated {LAST_SYNC_FILE} to: {excel_last_modified_str}")
-    print("🎉 ALL DONE")
+    print(f"📝 Updated {last_sync_file} to: {excel_last_modified_str}")
+    print(f"🎉 {name} DONE")
     print("====================================")
+
+# ================================
+# MAIN
+# ================================
+
+def main():
+    print("🚀 START MULTI EXCEL TO GOOGLE SYNC")
+
+    for config in SYNC_CONFIGS:
+        process_one_config(config)
+
+    print("🎉 ALL CONFIGS DONE")
 
 if __name__ == "__main__":
     main()
