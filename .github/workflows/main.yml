@@ -30,12 +30,15 @@ jobs:
           USER_EMAIL: ${{ secrets.USER_EMAIL }}
           ESBFILE_ID: ${{ secrets.ESBFILE_ID }}
           ESBGOOGLE_SHEET_ID: ${{ secrets.ESBGOOGLE_SHEET_ID }}
+          TESTFILE_ID: ${{ secrets.FILE_ID }}
+          TEST_GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
 
       - name: Save last sync state
-        run: | 
+        run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add last_sync.txt
+          git add last_sync_esb.txt
+          git add last_sync_test.txt
           git commit -m "Update last sync time" || echo "No changes to commit"
           git push
