@@ -30,8 +30,8 @@ jobs:
           USER_EMAIL: ${{ secrets.USER_EMAIL }}
           ESBFILE_ID: ${{ secrets.ESBFILE_ID }}
           ESBGOOGLE_SHEET_ID: ${{ secrets.ESBGOOGLE_SHEET_ID }}
-          TESTFILE_ID: ${{ secrets.FILE_ID }}
-          TEST_GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          FILE_ID: ${{ secrets.FILE_ID }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
 
       - name: Save last sync state
