@@ -58,7 +58,7 @@ SYNC_CONFIGS = [
         "name": "CFIS",
         "file_id": CFIS_FILE_ID,
         "google_sheet_id": PENPEC_GOOGLE_SHEET_ID,
-        "last_sync_file": "last_sync_CFIS&CRRedeemPoints.txt",
+        "last_sync_file": "last_sync_CFIS.txt",
         "table_mapping": {
             "CF_Table": "CF",
             "IS_Table": "IS",
