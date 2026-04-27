@@ -33,7 +33,7 @@ jobs:
           FILE_ID: ${{ secrets.FILE_ID }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           CFIS_FILE_ID: ${{ secrets.CFIS_FILE_ID }}
-          CFIS_GOOGLE_SHEET_ID: ${{ secrets.CFIS_GOOGLE_SHEET_ID }}
+          CFIS_GOOGLE_SHEET_ID: ${{ secrets.PENPEC_GOOGLE_SHEET_ID }}
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
 
       - name: Save last sync state
