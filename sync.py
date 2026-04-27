@@ -24,8 +24,8 @@ TEST_GOOGLE_SHEET_ID = os.environ["GOOGLE_SHEET_ID"]
 # ====================================================
 
 CFIS_FILE_ID = os.environ["CFIS_FILE_ID"]
+LUBRICANT_FILE_ID = os.environ["LUBRICANT_FILE_ID"]
 PENPEC_GOOGLE_SHEET_ID = os.environ["PENPEC_GOOGLE_SHEET_ID"]
-
 
 # ================================
 # MULTI CONFIG
@@ -64,6 +64,15 @@ SYNC_CONFIGS = [
             "IS_Table": "IS",
             "CR_Table": "Loyalty Liters- CR & B-Infinite",
             "RP_Table": "Redeemed Points"
+        }
+    },
+    {
+        "name": "LUBRICANT",
+        "file_id": LUBRICANT_FILE_ID,
+        "google_sheet_id": PENPEC_GOOGLE_SHEET_ID,
+        "last_sync_file": "last_sync_LUBRICANT.txt",
+        "table_mapping": {
+            "Lubricant_Table": "Lubricant",
         }
     }
 ]
