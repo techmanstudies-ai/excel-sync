@@ -21,7 +21,7 @@ ESBGOOGLE_SHEET_ID = os.environ["ESBGOOGLE_SHEET_ID"]
 TESTFILE_ID = os.environ["FILE_ID"]
 TEST_GOOGLE_SHEET_ID = os.environ["GOOGLE_SHEET_ID"]
 # ====================================================
-CFIS&CRRedeemPoints_FILE_ID = os.environ["CFIS&CRRedeemPoints_FILE_ID"]
+CFISCRRedeemPoints_FILE_ID = os.environ["CFISCRRedeemPoints_FILE_ID"]
 PENPEC_GOOGLE_SHEET_ID = os.environ["PENPEC_GOOGLE_SHEET_ID"]
 
 
@@ -53,8 +53,8 @@ SYNC_CONFIGS = [
         }
     },
     {
-        "name": "CFIS&CRRedeemPoints",
-        "file_id": CFIS&CRRedeemPoints_FILE_ID,
+        "name": "CFISCRRedeemPoints",
+        "file_id": CFISCRRedeemPoints_FILE_ID,
         "google_sheet_id": PENPEC_GOOGLE_SHEET_ID,
         "last_sync_file": "last_sync_CFIS&CRRedeemPoints.txt",
         "table_mapping": {
