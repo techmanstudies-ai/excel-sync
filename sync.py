@@ -25,6 +25,7 @@ TEST_GOOGLE_SHEET_ID = os.environ["GOOGLE_SHEET_ID"]
 
 CFIS_FILE_ID = os.environ["CFIS_FILE_ID"]
 LUBRICANT_FILE_ID = os.environ["LUBRICANT_FILE_ID"]
+INCENTIVE_FILE_ID = os.environ["INCENTIVE_FILE_ID"]
 PENPEC_GOOGLE_SHEET_ID = os.environ["PENPEC_GOOGLE_SHEET_ID"]
 
 # ================================
@@ -73,6 +74,15 @@ SYNC_CONFIGS = [
         "last_sync_file": "last_sync_LUBRICANT.txt",
         "table_mapping": {
             "Lubricant_Table": "Lubricant",
+        }
+    },
+    {
+        "name": "INCENTIVE",
+        "file_id": INCENTIVE_FILE_ID,
+        "google_sheet_id": PENPEC_GOOGLE_SHEET_ID,
+        "last_sync_file": "last_sync_INCENTIVE.txt",
+        "table_mapping": {
+            "Table1": "Related Incentive",
         }
     }
 ]
