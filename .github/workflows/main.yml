@@ -33,6 +33,7 @@ jobs:
           FILE_ID: ${{ secrets.FILE_ID }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           CFIS_FILE_ID: ${{ secrets.CFIS_FILE_ID }}
+          LUBRICANT_FILE_ID: ${{ secrets.LUBRICANT_FILE_ID }}
           PENPEC_GOOGLE_SHEET_ID: ${{ secrets.PENPEC_GOOGLE_SHEET_ID }}
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
 
@@ -43,5 +44,6 @@ jobs:
           git add last_sync_esb.txt
           git add last_sync_test.txt
           git add last_sync_CFIS.txt
+          git add last_sync_LUBRICANT.txt
           git commit -m "Update last sync time" || echo "No changes to commit"
           git push
