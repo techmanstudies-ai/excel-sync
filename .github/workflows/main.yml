@@ -35,6 +35,7 @@ jobs:
           CFIS_FILE_ID: ${{ secrets.CFIS_FILE_ID }}
           LUBRICANT_FILE_ID: ${{ secrets.LUBRICANT_FILE_ID }}
           INCENTIVE_FILE_ID: ${{ secrets.INCENTIVE_FILE_ID }}
+          FUEL_FILE_ID: ${{ secrets.FUEL_FILE_ID }}
           PENPEC_GOOGLE_SHEET_ID: ${{ secrets.PENPEC_GOOGLE_SHEET_ID }}
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
 
@@ -47,5 +48,6 @@ jobs:
           git add last_sync_CFIS.txt
           git add last_sync_LUBRICANT.txt
           git add last_sync_INCENTIVE.txt
+          git add last_sync_FUEL.txt
           git commit -m "Update last sync time" || echo "No changes to commit"
           git push
