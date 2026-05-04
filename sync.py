@@ -45,6 +45,11 @@ FUEL_FILE_ID = os.environ["FUEL_FILE_ID"]
 AGING_FILE_ID = os.environ["AGING_FILE_ID"]
 PENPEC_GOOGLE_SHEET_ID = os.environ["PENPEC_GOOGLE_SHEET_ID"]
 
+PENPEC_TENANT_ID = os.environ["PENPEC_TENANT_ID"]
+PENPEC_CLIENT_ID = os.environ["PENPEC_CLIENT_ID"]
+PENPEC_CLIENT_SECRET = os.environ["PENPEC_CLIENT_SECRET"]
+PENPEC_USER_EMAIL = os.environ["PENPEC_USER_EMAIL"]
+
 # ================================
 # MULTI CONFIG
 # ================================
@@ -145,23 +150,27 @@ gspread_client = gspread.authorize(creds)
 # MICROSOFT GRAPH TOKEN
 # ================================
 
-token_url = f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/token"
+def get_headers(tenant, client_id, client_secret):
+    token_url = f"https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token"
 
-token_data = {
-    "client_id": CLIENT_ID,
-    "scope": "https://graph.microsoft.com/.default",
-    "client_secret": CLIENT_SECRET,
-    "grant_type": "client_credentials"
-}
+    token_data = {
+        "client_id": client_id,
+        "scope": "https://graph.microsoft.com/.default",
+        "client_secret": client_secret,
+        "grant_type": "client_credentials"
+    }
 
-token_res = requests.post(token_url, data=token_data, timeout=30)
-token_res.raise_for_status()
+    res = requests.post(token_url, data=token_data, timeout=30)
+    res.raise_for_status()
 
-access_token = token_res.json()["access_token"]
+    token = res.json().get("access_token")
 
-headers = {
-    "Authorization": f"Bearer {access_token}"
-}
+    if not token:
+        raise Exception(f"❌ Cannot get token: {res.json()}")
+
+    return {
+        "Authorization": f"Bearer {token}"
+    }
 
 # ================================
 # TIME HELPERS
@@ -183,19 +192,19 @@ def save_last_sync_time(last_sync_file: str, dt_str: str) -> None:
 # EXCEL LAST MODIFIED
 # ================================
 
-def get_excel_last_modified(file_id: str) -> str:
-    url = f"https://graph.microsoft.com/v1.0/users/{USER_EMAIL}/drive/items/{file_id}?$select=lastModifiedDateTime"
+def get_excel_last_modified(file_id: str, headers, user_email) -> str:
+    url = f"https://graph.microsoft.com/v1.0/users/{user_email}/drive/items/{file_id}?$select=lastModifiedDateTime"
     return requests.get(url, headers=headers).json()["lastModifiedDateTime"]
 
 # ================================
 # SYNC ONE TABLE
 # ================================
 
-def sync_table(file_id, spreadsheet, table_name, sheet_name):
+def sync_table(file_id, spreadsheet, table_name, sheet_name, headers, user_email):
     print(f"🔄 Syncing {table_name}...")
 
-    rows_url = f"https://graph.microsoft.com/v1.0/users/{USER_EMAIL}/drive/items/{file_id}/workbook/tables/{table_name}/rows"
-    cols_url = f"https://graph.microsoft.com/v1.0/users/{USER_EMAIL}/drive/items/{file_id}/workbook/tables/{table_name}/columns"
+    rows_url = f"https://graph.microsoft.com/v1.0/users/{user_email}/drive/items/{file_id}/workbook/tables/{table_name}/rows"
+    cols_url = f"https://graph.microsoft.com/v1.0/users/{user_email}/drive/items/{file_id}/workbook/tables/{table_name}/columns"
 
     rows = [r["values"][0] for r in requests.get(rows_url, headers=headers).json()["value"]]
     cols = [c["name"] for c in requests.get(cols_url, headers=headers).json()["value"]]
@@ -224,9 +233,20 @@ def sync_table(file_id, spreadsheet, table_name, sheet_name):
 def process_one_config(config):
     print(f"\n📦 START CONFIG: {config['name']}")
 
+    # 👇 判断是不是 AGING（用 Penpec）
+    if config["name"] == "AGING":
+        headers = get_headers(PENPEC_TENANT_ID, PENPEC_CLIENT_ID, PENPEC_CLIENT_SECRET)
+        user_email = PENPEC_USER_EMAIL
+    else:
+        headers = get_headers(TENANT_ID, CLIENT_ID, CLIENT_SECRET)
+        user_email = USER_EMAIL
+
     spreadsheet = retry(lambda: gspread_client.open_by_key(config["google_sheet_id"]))
 
-    excel_last_modified = parse_graph_datetime(get_excel_last_modified(config["file_id"]))
+    excel_last_modified = parse_graph_datetime(
+        get_excel_last_modified(config["file_id"], headers, user_email)
+    )
+
     last_sync_time = read_last_sync_time(config["last_sync_file"])
 
     print(f"📄 Excel last modified : {excel_last_modified}")
@@ -239,11 +259,10 @@ def process_one_config(config):
     print("🟢 Changes detected. Start syncing...")
 
     for table, sheet in config["table_mapping"].items():
-        sync_table(config["file_id"], spreadsheet, table, sheet)
+        sync_table(config["file_id"], spreadsheet, table, sheet, headers, user_email)
 
     save_last_sync_time(config["last_sync_file"], excel_last_modified.isoformat())
     print(f"🎉 {config['name']} DONE")
-
 # ================================
 # MAIN
 # ================================
