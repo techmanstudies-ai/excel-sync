@@ -42,6 +42,7 @@ CFIS_FILE_ID = os.environ["CFIS_FILE_ID"]
 LUBRICANT_FILE_ID = os.environ["LUBRICANT_FILE_ID"]
 INCENTIVE_FILE_ID = os.environ["INCENTIVE_FILE_ID"]
 FUEL_FILE_ID = os.environ["FUEL_FILE_ID"]
+AGING_FILE_ID = os.environ["AGING_FILE_ID"]
 PENPEC_GOOGLE_SHEET_ID = os.environ["PENPEC_GOOGLE_SHEET_ID"]
 
 # ================================
@@ -89,7 +90,7 @@ SYNC_CONFIGS = [
         "google_sheet_id": PENPEC_GOOGLE_SHEET_ID,
         "last_sync_file": "last_sync_LUBRICANT.txt",
         "table_mapping": {
-            "Lubricant_Table": "Lubricant",
+            "Lubricant_Table": "Lubricant"
         }
     },
     {
@@ -98,7 +99,7 @@ SYNC_CONFIGS = [
         "google_sheet_id": PENPEC_GOOGLE_SHEET_ID,
         "last_sync_file": "last_sync_INCENTIVE.txt",
         "table_mapping": {
-            "Table1": "Related Incentive",
+            "Table1": "Related Incentive"
         }
     },
     {
@@ -107,7 +108,17 @@ SYNC_CONFIGS = [
         "google_sheet_id": PENPEC_GOOGLE_SHEET_ID,
         "last_sync_file": "last_sync_FUEL.txt",
         "table_mapping": {
-            "Item_ScoreCard": "SO Fuel",
+            "Item_ScoreCard": "SO Fuel"
+        }
+    },
+    {
+        "name": "AGING",
+        "file_id": AGING_FILE_ID,
+        "google_sheet_id": PENPEC_GOOGLE_SHEET_ID,
+        "last_sync_file": "last_sync_AGING.txt",
+        "table_mapping": {
+            "AR_IV__C1": "Aging C1",
+            "AR_IV__C2": "Aging C2"
         }
     }
 ]
