@@ -3,8 +3,25 @@ import pandas as pd
 import gspread
 import os
 import json
+import time
 from datetime import datetime, timezone
 from google.oauth2.service_account import Credentials
+from gspread.exceptions import APIError
+
+# ================================
+# RETRY FUNCTION (NEW)
+# ================================
+def retry(func, retries=5, delay=5):
+    for i in range(retries):
+        try:
+            return func()
+        except APIError as e:
+            if "503" in str(e):
+                print(f"⚠️ 503 error, retry {i+1}/{retries}...")
+                time.sleep(delay * (i + 1))
+            else:
+                raise
+    raise Exception("❌ Max retries reached")
 
 # ================================
 #  CONFIG (FROM GITHUB SECRETS)
@@ -20,8 +37,6 @@ ESBGOOGLE_SHEET_ID = os.environ["ESBGOOGLE_SHEET_ID"]
 
 TESTFILE_ID = os.environ["FILE_ID"]
 TEST_GOOGLE_SHEET_ID = os.environ["GOOGLE_SHEET_ID"]
-
-# ====================================================
 
 CFIS_FILE_ID = os.environ["CFIS_FILE_ID"]
 LUBRICANT_FILE_ID = os.environ["LUBRICANT_FILE_ID"]
@@ -131,11 +146,7 @@ token_data = {
 token_res = requests.post(token_url, data=token_data, timeout=30)
 token_res.raise_for_status()
 
-token_json = token_res.json()
-if "access_token" not in token_json:
-    raise Exception(f"Cannot get access token: {token_json}")
-
-access_token = token_json["access_token"]
+access_token = token_res.json()["access_token"]
 
 headers = {
     "Authorization": f"Bearer {access_token}"
@@ -151,17 +162,10 @@ def parse_graph_datetime(dt_str: str) -> datetime:
 def read_last_sync_time(last_sync_file: str) -> datetime:
     if not os.path.exists(last_sync_file):
         return datetime(2000, 1, 1, tzinfo=timezone.utc)
-
-    with open(last_sync_file, "r", encoding="utf-8") as f:
-        content = f.read().strip()
-
-    if not content:
-        return datetime(2000, 1, 1, tzinfo=timezone.utc)
-
-    return parse_graph_datetime(content)
+    return parse_graph_datetime(open(last_sync_file).read().strip())
 
 def save_last_sync_time(last_sync_file: str, dt_str: str) -> None:
-    with open(last_sync_file, "w", encoding="utf-8") as f:
+    with open(last_sync_file, "w") as f:
         f.write(dt_str)
 
 # ================================
@@ -169,107 +173,65 @@ def save_last_sync_time(last_sync_file: str, dt_str: str) -> None:
 # ================================
 
 def get_excel_last_modified(file_id: str) -> str:
-    file_meta_url = (
-        f"https://graph.microsoft.com/v1.0/users/{USER_EMAIL}/drive/items/{file_id}"
-        f"?$select=id,name,lastModifiedDateTime"
-    )
-
-    res = requests.get(file_meta_url, headers=headers, timeout=30)
-    res.raise_for_status()
-
-    data = res.json()
-
-    if "lastModifiedDateTime" not in data:
-        raise Exception(f"Cannot get lastModifiedDateTime: {data}")
-
-    return data["lastModifiedDateTime"]
+    url = f"https://graph.microsoft.com/v1.0/users/{USER_EMAIL}/drive/items/{file_id}?$select=lastModifiedDateTime"
+    return requests.get(url, headers=headers).json()["lastModifiedDateTime"]
 
 # ================================
 # SYNC ONE TABLE
 # ================================
 
-def sync_table(file_id: str, spreadsheet, table_name: str, sheet_name: str) -> None:
+def sync_table(file_id, spreadsheet, table_name, sheet_name):
     print(f"🔄 Syncing {table_name}...")
 
-    rows_url = (
-        f"https://graph.microsoft.com/v1.0/users/{USER_EMAIL}/drive/items/"
-        f"{file_id}/workbook/tables/{table_name}/rows"
-    )
-    rows_res = requests.get(rows_url, headers=headers, timeout=60)
-    rows_res.raise_for_status()
+    rows_url = f"https://graph.microsoft.com/v1.0/users/{USER_EMAIL}/drive/items/{file_id}/workbook/tables/{table_name}/rows"
+    cols_url = f"https://graph.microsoft.com/v1.0/users/{USER_EMAIL}/drive/items/{file_id}/workbook/tables/{table_name}/columns"
 
-    rows_json = rows_res.json()
-    row_items = rows_json.get("value", [])
-    rows = [r["values"][0] for r in row_items]
+    rows = [r["values"][0] for r in requests.get(rows_url, headers=headers).json()["value"]]
+    cols = [c["name"] for c in requests.get(cols_url, headers=headers).json()["value"]]
 
-    cols_url = (
-        f"https://graph.microsoft.com/v1.0/users/{USER_EMAIL}/drive/items/"
-        f"{file_id}/workbook/tables/{table_name}/columns"
-    )
-    cols_res = requests.get(cols_url, headers=headers, timeout=60)
-    cols_res.raise_for_status()
-
-    cols_json = cols_res.json()
-    columns = [c["name"] for c in cols_json.get("value", [])]
-
-    df = pd.DataFrame(rows, columns=columns)
+    df = pd.DataFrame(rows, columns=cols)
 
     print(f"   Rows: {len(df)}")
 
-    try:
-        worksheet = spreadsheet.worksheet(sheet_name)
-    except gspread.WorksheetNotFound:
-        worksheet = spreadsheet.add_worksheet(title=sheet_name, rows="1000", cols="20")
+    worksheet = retry(lambda: spreadsheet.worksheet(sheet_name)) \
+        if sheet_name in [ws.title for ws in spreadsheet.worksheets()] \
+        else spreadsheet.add_worksheet(title=sheet_name, rows="1000", cols="20")
 
-    worksheet.clear()
+    retry(lambda: worksheet.clear())
 
     if len(df) == 0:
-        worksheet.update([columns])
+        retry(lambda: worksheet.update([cols]))
     else:
-        worksheet.update([df.columns.values.tolist()] + df.values.tolist())
+        retry(lambda: worksheet.update([df.columns.tolist()] + df.values.tolist()))
 
     print(f"   ✅ Synced to {sheet_name}")
 
 # ================================
-# PROCESS ONE EXCEL
+# PROCESS ONE CONFIG
 # ================================
 
-def process_one_config(config: dict) -> None:
-    name = config["name"]
-    file_id = config["file_id"]
-    google_sheet_id = config["google_sheet_id"]
-    last_sync_file = config["last_sync_file"]
-    table_mapping = config["table_mapping"]
+def process_one_config(config):
+    print(f"\n📦 START CONFIG: {config['name']}")
 
-    print("====================================")
-    print(f"📦 START CONFIG: {name}")
-    print("====================================")
+    spreadsheet = retry(lambda: gspread_client.open_by_key(config["google_sheet_id"]))
 
-    spreadsheet = gspread_client.open_by_key(google_sheet_id)
+    excel_last_modified = parse_graph_datetime(get_excel_last_modified(config["file_id"]))
+    last_sync_time = read_last_sync_time(config["last_sync_file"])
 
-    excel_last_modified_str = get_excel_last_modified(file_id)
-    excel_last_modified = parse_graph_datetime(excel_last_modified_str)
-
-    last_sync_time = read_last_sync_time(last_sync_file)
-
-    print(f"📄 Excel last modified : {excel_last_modified_str}")
-    print(f"🕒 Last sync time      : {last_sync_time.isoformat()}")
+    print(f"📄 Excel last modified : {excel_last_modified}")
+    print(f"🕒 Last sync time      : {last_sync_time}")
 
     if excel_last_modified <= last_sync_time:
         print("🟡 No changes detected. Skip sync.")
-        print("====================================")
         return
 
     print("🟢 Changes detected. Start syncing...")
 
-    for table, sheet in table_mapping.items():
-        sync_table(file_id, spreadsheet, table, sheet)
+    for table, sheet in config["table_mapping"].items():
+        sync_table(config["file_id"], spreadsheet, table, sheet)
 
-    save_last_sync_time(last_sync_file, excel_last_modified_str)
-
-    print(f"📝 Updated {last_sync_file} to: {excel_last_modified_str}")
-    print(f"🎉 {name} DONE")
-    print("====================================")
+    save_last_sync_time(config["last_sync_file"], excel_last_modified.isoformat())
+    print(f"🎉 {config['name']} DONE")
 
 # ================================
 # MAIN
@@ -280,6 +242,8 @@ def main():
 
     for config in SYNC_CONFIGS:
         process_one_config(config)
+        print("⏳ Sleeping 3 seconds to avoid API limit...")
+        time.sleep(3)  # 👈 关键
 
     print("🎉 ALL CONFIGS DONE")
 
