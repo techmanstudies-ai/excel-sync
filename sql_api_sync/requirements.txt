@@ -1,0 +1,4 @@
+requests
+gspread
+google-auth
+requests-aws4auth
