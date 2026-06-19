@@ -13,7 +13,7 @@ jobs:
     env:
       SQL_ACCESS_KEY: ${{ secrets.SQL_ACCESS_KEY }}
       SQL_SECRET_KEY: ${{ secrets.SQL_SECRET_KEY }}
-      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      SQL_GOOGLE_CREDENTIALS: ${{ secrets.SQL_GOOGLE_CREDENTIALS }}
       SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
 
     steps:
