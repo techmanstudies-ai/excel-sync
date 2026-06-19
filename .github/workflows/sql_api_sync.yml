@@ -1,0 +1,34 @@
+name: SQL API Daily Sync
+
+on:
+  schedule:
+    - cron: "0 2 * * *"   # Malaysia time 10:00 AM
+  workflow_dispatch:
+
+jobs:
+  run-sql-api-sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    env:
+      SQL_ACCESS_KEY: ${{ secrets.SQL_ACCESS_KEY }}
+      SQL_SECRET_KEY: ${{ secrets.SQL_SECRET_KEY }}
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: sql_api_sync
+        run: pip install -r requirements.txt
+
+      - name: Run SQL API daily sync
+        working-directory: sql_api_sync
+        run: python daily_sync.py
