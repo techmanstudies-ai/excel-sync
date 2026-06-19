@@ -2,7 +2,7 @@ name: SQL API Daily Sync
 
 on:
   schedule:
-    - cron: "0 0 * * *"   # Malaysia time 10:00 AM
+    - cron: "0 0 * * *"   # Malaysia time 8:00 AM
   workflow_dispatch:
 
 jobs:
