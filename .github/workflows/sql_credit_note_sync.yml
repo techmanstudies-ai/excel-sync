@@ -36,8 +36,8 @@ jobs:
 
       - name: Run Sales Credit Note Header
         working-directory: sql_api_sync
-        run: python Get_Sales_Credit_Note.py
+        run: python Get_Customer_Credit_Note.py
 
       - name: Run Sales Credit Note Detail
         working-directory: sql_api_sync
-        run: python Get_Sales_Credit_Note_Detail.py
+        run: python Get_Customer_Credit_Note_Detail.py
