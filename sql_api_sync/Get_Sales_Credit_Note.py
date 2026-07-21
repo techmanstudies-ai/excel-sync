@@ -1,10 +1,11 @@
-import requests
 import json
 import os
 import time
+
 import gspread
-from requests_aws4auth import AWS4Auth
+import requests
 from google.oauth2.service_account import Credentials
+from requests_aws4auth import AWS4Auth
 
 # ==========================================
 # CONFIG
@@ -29,13 +30,25 @@ MAX_RETRY = 5
 
 WORKSHEET_NAME = "Sales_Credit_Note"
 
-# Save progress/log in same folder as script
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
 PROGRESS_FILE = os.path.join(
     BASE_DIR,
     f"progress_{DOCUMENT_TYPE}_{TARGET_YEAR}.json"
 )
+
+HEADERS = [
+    "DocNo",
+    "DocDate",
+    "CustomerCode",
+    "CustomerName",
+    "Currency",
+    "DocAmount",
+    "LocalAmount",
+    "Status",
+    "Cancelled",
+    "CreatedDate",
+    "DocKey"
+]
 
 # ==========================================
 # AUTH
@@ -53,9 +66,7 @@ scope = [
     "https://www.googleapis.com/auth/drive"
 ]
 
-creds_dict = json.loads(
-    os.environ["SQL_GOOGLE_CREDENTIALS"]
-)
+creds_dict = json.loads(os.environ["SQL_GOOGLE_CREDENTIALS"])
 
 creds = Credentials.from_service_account_info(
     creds_dict,
@@ -63,17 +74,15 @@ creds = Credentials.from_service_account_info(
 )
 
 gc = gspread.authorize(creds)
-
 spreadsheet = gc.open_by_key(SPREADSHEET_ID)
 
-# Create worksheet automatically if missing
 try:
     sheet = spreadsheet.worksheet(WORKSHEET_NAME)
 except gspread.WorksheetNotFound:
     sheet = spreadsheet.add_worksheet(
         title=WORKSHEET_NAME,
         rows=1000,
-        cols=20
+        cols=len(HEADERS)
     )
 
 print(f"Connected to worksheet: {WORKSHEET_NAME}")
@@ -84,11 +93,8 @@ print(f"Downloading Sales Credit Notes for {TARGET_YEAR}")
 # ==========================================
 
 def safe_request(url):
-
     for attempt in range(1, MAX_RETRY + 1):
-
         try:
-
             response = requests.get(
                 url,
                 auth=auth,
@@ -103,13 +109,10 @@ def safe_request(url):
                 f"on attempt {attempt}/{MAX_RETRY}"
             )
 
-            try:
+            if response.text:
                 print(response.text[:1000])
-            except Exception:
-                pass
 
         except requests.RequestException as error:
-
             print(
                 f"Request error on attempt "
                 f"{attempt}/{MAX_RETRY}: {error}"
@@ -124,31 +127,67 @@ def safe_request(url):
 # ==========================================
 
 def get_document_year(docdate):
-
     if not docdate:
         return None
 
-    date_text = str(docdate).strip()
+    text = str(docdate).strip()
 
-    # Format: YYYY-MM-DD
-    if (
-        len(date_text) >= 4
-        and date_text[:4].isdigit()
-    ):
-        return int(date_text[:4])
+    if len(text) >= 4 and text[:4].isdigit():
+        return int(text[:4])
 
-    # Format: DD/MM/YYYY
-    if "/" in date_text:
-
-        date_parts = date_text.split("/")
-
-        if (
-            len(date_parts) == 3
-            and date_parts[2][:4].isdigit()
-        ):
-            return int(date_parts[2][:4])
+    if "/" in text:
+        parts = text.split("/")
+        if len(parts) == 3 and parts[2][:4].isdigit():
+            return int(parts[2][:4])
 
     return None
+
+# ==========================================
+# ENSURE HEADER
+# ==========================================
+
+def ensure_header():
+    first_row = sheet.row_values(1)
+
+    if not first_row:
+        sheet.update(
+            range_name=f"A1:K1",
+            values=[HEADERS]
+        )
+        print("Sales Credit Note header created.")
+        return
+
+    existing = [
+        str(value).strip()
+        for value in first_row[:len(HEADERS)]
+    ]
+
+    required = [
+        str(value).strip()
+        for value in HEADERS
+    ]
+
+    if existing == required:
+        return
+
+    first_cell = str(first_row[0]).strip() if first_row else ""
+
+    if first_cell and first_cell != "DocNo":
+        sheet.insert_row(
+            HEADERS,
+            index=1,
+            value_input_option="RAW"
+        )
+        print("Header inserted above existing data.")
+        return
+
+    sheet.update(
+        range_name=f"A1:K1",
+        values=[HEADERS]
+    )
+    print("Existing header corrected.")
+
+ensure_header()
 
 # ==========================================
 # LOAD EXISTING DOCNO
@@ -159,49 +198,34 @@ existing_docnos = set()
 records = sheet.col_values(1)
 
 if len(records) > 1:
-
     existing_docnos = {
         str(docno).strip()
         for docno in records[1:]
         if str(docno).strip()
     }
 
-print(
-    f"Existing Sales Credit Notes in sheet: "
-    f"{len(existing_docnos)}"
-)
+print(f"Existing Sales Credit Notes: {len(existing_docnos)}")
 
 # ==========================================
-# PROGRESS LOG ONLY
+# PROGRESS LOG
 # ==========================================
 
 def save_progress(offset, pushed_count):
-
-    progress_data = {
-        "document_type": DOCUMENT_TYPE,
-        "worksheet_name": WORKSHEET_NAME,
-        "last_checked_offset": offset,
-        "target_year": TARGET_YEAR,
-        "pushed_count_this_run": pushed_count,
-        "updated_at": time.strftime(
-            "%Y-%m-%d %H:%M:%S"
-        ),
-        "note": (
-            "This file is only a log. "
-            "The script scans from the beginning "
-            "of the target year and skips existing DocNo."
-        )
-    }
-
-    with open(
-        PROGRESS_FILE,
-        "w",
-        encoding="utf-8"
-    ) as progress_file:
-
+    with open(PROGRESS_FILE, "w", encoding="utf-8") as file:
         json.dump(
-            progress_data,
-            progress_file,
+            {
+                "document_type": DOCUMENT_TYPE,
+                "worksheet_name": WORKSHEET_NAME,
+                "last_checked_offset": offset,
+                "target_year": TARGET_YEAR,
+                "pushed_count_this_run": pushed_count,
+                "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "note": (
+                    "Log only. Script scans from target-year start "
+                    "and skips existing DocNo."
+                )
+            },
+            file,
             indent=4,
             ensure_ascii=False
         )
@@ -211,128 +235,55 @@ def save_progress(offset, pushed_count):
 # ==========================================
 
 def find_year_start():
-
-    print(
-        "\nPhase 1: Jump searching "
-        "for the target year..."
-    )
+    print("\nPhase 1: Jump searching for target year...")
 
     offset = 0
     last_valid_offset = 0
 
     while True:
-
-        url = (
-            f"{BASE_URL}"
-            f"?offset={offset}"
-            f"&limit=1"
+        response = safe_request(
+            f"{BASE_URL}?offset={offset}&limit=1"
         )
 
-        response = safe_request(url)
-
         if not response:
-
             print(
                 f"Cannot fetch offset {offset}. "
-                f"Using last valid offset "
-                f"{last_valid_offset}."
+                f"Using last valid offset {last_valid_offset}."
             )
-
             return last_valid_offset
 
         try:
-            response_data = response.json()
+            data = response.json().get("data", [])
         except ValueError:
-
-            print(
-                "API returned an invalid JSON response."
-            )
-
+            print("API returned invalid JSON.")
             return last_valid_offset
 
-        data = response_data.get("data", [])
-
         if not data:
-
-            print(
-                "No data found during jump search."
-            )
-
+            print("No data found during jump search.")
             return last_valid_offset
 
         docdate = data[0].get("docdate", "")
         doc_year = get_document_year(docdate)
 
         if doc_year is None:
-
-            print(
-                f"Unable to read date at "
-                f"offset {offset}: {docdate}"
-            )
-
             offset += JUMP_SIZE
             continue
 
-        print(
-            f"Jump offset {offset}: "
-            f"{docdate}"
-        )
+        print(f"Jump offset {offset}: {docdate}")
 
         if doc_year >= TARGET_YEAR:
-
-            start_offset = max(
-                0,
-                offset - JUMP_SIZE
-            )
-
-            print(
-                "Target year located. "
-                f"Rewinding to offset "
-                f"{start_offset}"
-            )
-
+            start_offset = max(0, offset - JUMP_SIZE)
+            print(f"Target year located. Rewinding to offset {start_offset}")
             return start_offset
 
         last_valid_offset = offset
         offset += JUMP_SIZE
 
 # ==========================================
-# ENSURE HEADER
-# ==========================================
-
-def ensure_header():
-
-    current_values = sheet.get_all_values()
-
-    if current_values:
-        return
-
-    header = [
-        "DocNo",
-        "DocDate",
-        "CustomerCode",
-        "CustomerName",
-        "Currency",
-        "DocAmount",
-        "LocalAmount",
-        "Status",
-        "Cancelled",
-        "CreatedDate"
-    ]
-
-    sheet.append_row(
-        header,
-        value_input_option="RAW"
-    )
-
-    print("Worksheet header created.")
-
-# ==========================================
 # PUSH FUNCTION
 # ==========================================
 
 def push_rows(rows):
-
     if not rows:
         return 0
 
@@ -343,83 +294,48 @@ def push_rows(rows):
         value_input_option="RAW"
     )
 
-    print(
-        f"Pushed {len(rows)} rows "
-        "to Google Sheet"
-    )
-
+    print(f"Pushed {len(rows)} rows to Google Sheet")
     return len(rows)
 
 # ==========================================
-# DOWNLOAD PHASE
+# DOWNLOAD
 # ==========================================
 
 offset = find_year_start()
 
-print(
-    "\nPhase 2: Downloading "
-    "Sales Credit Notes..."
-)
-
-print(
-    "This run will scan from the target "
-    "year start and skip existing DocNo."
-)
+print("\nPhase 2: Downloading Sales Credit Notes...")
 
 batch_rows = []
 total_pushed = 0
 total_checked = 0
 
 while True:
+    print(f"\nFetching Sales Credit Note offset {offset}...")
 
-    print(f"\nFetching CN header offset {offset}...")
-
-    url = (
-        f"{BASE_URL}"
-        f"?offset={offset}"
-        f"&limit={LIMIT}"
+    response = safe_request(
+        f"{BASE_URL}?offset={offset}&limit={LIMIT}"
     )
 
-    response = safe_request(url)
-
     if not response:
-
-        print(
-            f"Cannot fetch offset {offset}. "
-            "Stopping safely."
-        )
-
+        print(f"Cannot fetch offset {offset}. Stopping safely.")
         break
 
     try:
-        response_data = response.json()
+        credit_notes = response.json().get("data", [])
     except ValueError:
-
-        print(
-            f"Invalid JSON at offset {offset}. "
-            "Stopping safely."
-        )
-
+        print(f"Invalid JSON at offset {offset}. Stopping safely.")
         break
 
-    headers = response_data.get("data", [])
-
-    if not headers:
-
+    if not credit_notes:
         print("No more records.")
         break
 
     stop_all = False
 
-    for credit_note in headers:
-
+    for credit_note in credit_notes:
         total_checked += 1
 
-        docdate = credit_note.get(
-            "docdate",
-            ""
-        )
-
+        docdate = credit_note.get("docdate", "")
         doc_year = get_document_year(docdate)
 
         if doc_year is None:
@@ -429,42 +345,34 @@ while True:
             continue
 
         if doc_year > TARGET_YEAR:
-
             stop_all = True
             break
 
-        docno = str(
-            credit_note.get("docno", "")
-        ).strip()
+        docno = str(credit_note.get("docno", "")).strip()
 
-        if not docno:
+        if not docno or docno in existing_docnos:
             continue
 
-        if docno in existing_docnos:
-            continue
+        batch_rows.append(
+            [
+                docno,
+                docdate,
+                credit_note.get("code"),
+                credit_note.get("companyname"),
+                credit_note.get("currencycode"),
+                credit_note.get("docamt"),
+                credit_note.get("localdocamt"),
+                credit_note.get("status"),
+                credit_note.get("cancelled"),
+                credit_note.get("creationdate"),
+                credit_note.get("dockey")
+            ]
+        )
 
-        row = [
-            docno,
-            docdate,
-            credit_note.get("code"),
-            credit_note.get("companyname"),
-            credit_note.get("currencycode"),
-            credit_note.get("docamt"),
-            credit_note.get("localdocamt"),
-            credit_note.get("status"),
-            credit_note.get("cancelled"),
-            credit_note.get("creationdate")
-        ]
-
-        batch_rows.append(row)
         existing_docnos.add(docno)
 
     if len(batch_rows) >= AUTO_PUSH_EVERY:
-
-        total_pushed += push_rows(
-            batch_rows
-        )
-
+        total_pushed += push_rows(batch_rows)
         batch_rows = []
 
     save_progress(
@@ -474,39 +382,20 @@ while True:
 
     print(
         f"Checked: {total_checked} | "
-        f"Waiting to push: {len(batch_rows)} | "
-        f"Already pushed: {total_pushed}"
+        f"Waiting: {len(batch_rows)} | "
+        f"Pushed: {total_pushed}"
     )
 
     if stop_all:
-
-        print(
-            f"\nFinished target year "
-            f"{TARGET_YEAR}."
-        )
-
+        print(f"\nFinished target year {TARGET_YEAR}.")
         break
 
     offset += LIMIT
     time.sleep(0.05)
 
-# ==========================================
-# FINAL PUSH
-# ==========================================
-
 total_pushed += push_rows(batch_rows)
-
-save_progress(
-    offset,
-    total_pushed
-)
+save_progress(offset, total_pushed)
 
 print("\nSales Credit Note sync complete.")
-print(
-    f"Total records checked: "
-    f"{total_checked}"
-)
-print(
-    f"Total new rows pushed this run: "
-    f"{total_pushed}"
-)
+print(f"Total records checked: {total_checked}")
+print(f"Total new rows pushed: {total_pushed}")
