@@ -18,8 +18,8 @@ scripts = [
     "Get_Purchase_Invoice_Detail.py",
     "Get_Sales_Invoice.py",
     "Get_Sales_Invoice_Detail.py",
-    "Get_Sales_Credit_Note.py",
-    "Get_Sales_Credit_Note_Detail.py"
+    "Get_Customer_Credit_Note.py",
+    "Get_Customer_Credit_Note_Detail.py"
 ]
 
 # ==========================================
